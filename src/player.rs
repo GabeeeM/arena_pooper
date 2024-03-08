@@ -56,16 +56,16 @@ fn control_player(
     time: Res<Time>,
     mut pause_q: Query<&mut Paused>,
     mut player_q: Query<&mut Transform, (With<Player>, Without<PlayerCam>)>,
-    mut camera_q: Query<(&mut Transform), With<PlayerCam>>,
+    mut camera_q: Query<&mut Transform, With<PlayerCam>>,
     mut mouse_motion: EventReader<MouseMotion>,
     mut q_windows: Query<&mut Window, With<PrimaryWindow>>,
 ) {
     let mut pause_now = pause_q.get_single_mut().unwrap();
-    if (keys.just_pressed(KeyCode::Escape)) {
+    if keys.just_pressed(KeyCode::Escape) {
         pause_now.0 = !pause_now.0;
     }
 
-    let (mut camera_transform) = camera_q
+    let mut camera_transform = camera_q
         .get_single_mut()
         .expect("Couldnt get camera for mouse control thing");
 
@@ -95,25 +95,25 @@ fn control_player(
     let mut movement = Vec3::ZERO;
 
     // Forward
-    if (keys.pressed(KeyCode::KeyW)) {
+    if keys.pressed(KeyCode::KeyW) {
         movement.x += camera_transform.forward().x;
         movement.z += camera_transform.forward().z;
     }
 
     // Backward
-    if (keys.pressed(KeyCode::KeyS)) {
+    if keys.pressed(KeyCode::KeyS) {
         movement.x += camera_transform.back().x;
         movement.z += camera_transform.back().z;
     }
 
     // Left
-    if (keys.pressed(KeyCode::KeyA)) {
+    if keys.pressed(KeyCode::KeyA) {
         movement.x += camera_transform.left().x;
         movement.z += camera_transform.left().z;
     }
 
     // Right
-    if (keys.pressed(KeyCode::KeyD)) {
+    if keys.pressed(KeyCode::KeyD) {
         movement.x += camera_transform.right().x;
         movement.z += camera_transform.right().z;
     }
