@@ -1,0 +1,22 @@
+name: Rust
+
+on:
+  workflow_dispatch:  # This allows manual triggering of the workflow
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Build
+      run: cargo build --release
+
+    - name: Upload Executable as Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: Pooper  # Name of the artifact
+        path: target/release/*.exe  # Use wildcard for the executable
