@@ -4,7 +4,7 @@ use bevy::{
     window::{CursorGrabMode, PrimaryWindow},
 };
 
-use bevy_rapier3d::{dynamics::RigidBody, na::ComplexField, parry::query::point, prelude::*};
+use bevy_rapier3d::{dynamics::RigidBody, prelude::*};
 
 pub struct PlayerPlugin;
 
@@ -22,7 +22,6 @@ pub struct PlayerCam;
 #[derive(Component)]
 pub struct Player {
     paused: bool,
-    moving: bool,
 }
 
 #[derive(Event)]
@@ -40,19 +39,16 @@ fn spawn_player(
             transform: Transform::from_xyz(0.0, 0.5, 0.0),
             ..default()
         },
-        Player {
-            paused: true,
-            moving: false,
-        },
+        Player { paused: true },
         RigidBody::Dynamic,
         Collider::ball(0.5),
         Velocity::default(),
         LockedAxes::ROTATION_LOCKED,
         Ccd::enabled(),
-        Damping {
-            linear_damping: 5.0,
-            angular_damping: 0.0,
-        },
+        // Damping {
+        //     linear_damping: 5.0,
+        //     angular_damping: 0.0,
+        // },
         Friction {
             coefficient: 0.0,
             combine_rule: CoefficientCombineRule::Min,
@@ -79,15 +75,15 @@ fn control_player(
     time: Res<Time>,
     mut shot_rocket: EventWriter<ShotRocket>,
     mut player_q: Query<
-        (&mut Velocity, &mut Player, &Transform, &mut Damping),
+        (&mut Velocity, &mut Player, &Transform),
         (With<Player>, Without<PlayerCam>),
     >,
-    mut camera_q: Query<(&mut Transform), With<PlayerCam>>,
+    mut camera_q: Query<&mut Transform, With<PlayerCam>>,
     mut mouse_motion: EventReader<MouseMotion>,
     mut q_windows: Query<&mut Window, With<PrimaryWindow>>,
 ) {
-    let (mut camera_transform) = camera_q.get_single_mut().unwrap();
-    let (mut player_velocity, mut player_stuff, player_transform, mut player_damping) =
+    let mut camera_transform = camera_q.get_single_mut().unwrap();
+    let (mut player_velocity, mut player_stuff, player_transform) =
         player_q.get_single_mut().unwrap();
 
     if keys.just_pressed(KeyCode::Escape) {
@@ -97,6 +93,16 @@ fn control_player(
     let mut primary_window = q_windows
         .get_single_mut()
         .expect("Could not grab primary window");
+
+    let is_grounded = rapier_context
+        .cast_ray(
+            player_transform.translation,
+            -Vec3::Y,
+            0.5,
+            true,
+            QueryFilter::only_fixed(),
+        )
+        .is_some();
 
     if player_stuff.paused {
         primary_window.cursor.grab_mode = CursorGrabMode::None;
@@ -119,46 +125,34 @@ fn control_player(
     }
 
     let mut movement = Vec3::ZERO;
-    player_stuff.moving = false;
 
     // Forward
     if keys.pressed(KeyCode::KeyW) {
         movement.x += camera_transform.forward().x;
         movement.z += camera_transform.forward().z;
-        player_stuff.moving = true;
     }
 
     // Backward
     if keys.pressed(KeyCode::KeyS) {
         movement.x += camera_transform.back().x;
         movement.z += camera_transform.back().z;
-        player_stuff.moving = true;
     }
 
     // Left
     if keys.pressed(KeyCode::KeyA) {
         movement.x += camera_transform.left().x;
         movement.z += camera_transform.left().z;
-        player_stuff.moving = true;
     }
 
     // Right
     if keys.pressed(KeyCode::KeyD) {
         movement.x += camera_transform.right().x;
         movement.z += camera_transform.right().z;
-        player_stuff.moving = true;
     }
 
     // Jump
-    if keys.just_pressed(KeyCode::Space) {
-        player_velocity.linvel.y += 10.0;
-    }
-
-    // Damping I hate This
-    if player_velocity.linvel.y.abs().round() != 0.0 {
-        player_damping.linear_damping = 0.0;
-    } else {
-        player_damping.linear_damping = 5.0;
+    if keys.pressed(KeyCode::Space) && is_grounded {
+        player_velocity.linvel.y = 10.0;
     }
 
     // Right Click Rocket Mode
@@ -179,9 +173,42 @@ fn control_player(
         }
     }
 
-    if (player_stuff.moving) {
-        let poo = movement.normalize_or_zero() * 1000.0 * time.delta_seconds();
-        player_velocity.linvel.x = poo.x;
-        player_velocity.linvel.z = poo.z;
+    // if (player_stuff.moving) {
+    //     let poo = movement.normalize_or_zero() * 1000.0 * time.delta_seconds();
+    //     player_velocity.linvel.x = poo.x;
+    //     player_velocity.linvel.z = poo.z;
+    // }
+
+    // let poo = movement.normalize_or_zero() * 1000.0 * time.delta_seconds();
+    // player_velocity.linvel.x += (poo.x);
+    // player_velocity.linvel.z += (poo.z);
+
+    // let poo = movement.normalize_or_zero() * 10.0 * time.delta_seconds();
+    // player_velocity.linvel.x += poo.x;
+    // player_velocity.linvel.z += poo.z;
+
+    let air_resistance = 0.1; // Adjust this value to control the amount of air resistance
+    let max_air_speed = 10.0; // Adjust this value to set the maximum air speed
+    let max_ground_speed = 5.0; // Adjust this value to set the maximum air speed
+
+    if is_grounded {
+        // Player is on the ground
+        let ground_movement = movement.normalize_or_zero() * max_ground_speed;
+        player_velocity.linvel.x = ground_movement.x;
+        player_velocity.linvel.z = ground_movement.z;
+    } else {
+        // Player is in the air
+        // Apply air resistance
+        let velocity_direction = player_velocity.linvel.normalize_or_zero();
+        let air_resistance_force =
+            -velocity_direction * player_velocity.linvel.length() * air_resistance;
+        player_velocity.linvel += air_resistance_force * time.delta_seconds();
+
+        // Calculate movement velocity based on input
+        let movement_velocity = movement.normalize_or_zero() * max_air_speed;
+
+        // Update player velocity based on input
+        player_velocity.linvel.x += movement_velocity.x * time.delta_seconds();
+        player_velocity.linvel.z += movement_velocity.z * time.delta_seconds();
     }
 }

@@ -1,4 +1,4 @@
-use bevy::{prelude::*, transform::commands};
+use bevy::{prelude::*};
 use bevy_rapier3d::{
     dynamics::{RigidBody, Velocity},
     geometry::{Collider, Sensor},
@@ -52,7 +52,7 @@ fn handle_rockets(
     for (mut timer, blast_transform, blast) in rockets_q.iter_mut() {
         timer.0.tick(time.delta());
 
-        if (timer.0.finished()) {
+        if timer.0.finished() {
             commands.entity(blast).despawn();
         }
 

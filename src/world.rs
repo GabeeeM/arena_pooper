@@ -1,4 +1,4 @@
-use bevy::{prelude::*, render::mesh::shape::Cube};
+use bevy::{prelude::*};
 use bevy_rapier3d::{dynamics::RigidBody, geometry::Collider};
 
 pub struct WorldPlugin;
@@ -16,12 +16,12 @@ fn spawn_world(
 ) {
     let floor = (
         PbrBundle {
-            mesh: meshes.add(Plane3d::default().mesh().size(70.0, 70.0)),
+            mesh: meshes.add(Plane3d::default().mesh().size(150.0, 150.0)),
             material: materials.add(Color::RED),
             ..default()
         },
         RigidBody::Fixed,
-        Collider::cuboid(35.0, 0.0, 35.0),
+        Collider::cuboid(75.0, 0.0, 75.0),
     );
 
     let cube = (
