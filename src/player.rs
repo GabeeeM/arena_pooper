@@ -12,7 +12,8 @@ impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_player)
             .add_systems(Update, control_player)
-            .add_event::<ShotRocket>();
+            .add_event::<ShotRocket>()
+            .add_event::<ShotBall>();
     }
 }
 
@@ -24,8 +25,14 @@ pub struct Player {
     paused: bool,
 }
 
+#[derive(Component)]
+pub struct Grounded(pub bool);
+
 #[derive(Event)]
 pub struct ShotRocket(pub Vec3);
+
+#[derive(Event)]
+pub struct ShotBall(pub Direction3d, pub Vec3);
 
 fn spawn_player(
     mut commands: Commands,
@@ -53,11 +60,12 @@ fn spawn_player(
             coefficient: 0.0,
             combine_rule: CoefficientCombineRule::Min,
         },
+        Grounded(true),
     );
 
     let camera = (
         Camera3dBundle {
-            transform: Transform::from_xyz(0.0, 0.5, 0.0).looking_at(Vec3::X, Vec3::Y),
+            transform: Transform::from_xyz(0.0, 0.25, 0.0).looking_at(Vec3::X, Vec3::Y),
             ..default()
         },
         PlayerCam,
@@ -74,8 +82,9 @@ fn control_player(
     rapier_context: Res<RapierContext>,
     time: Res<Time>,
     mut shot_rocket: EventWriter<ShotRocket>,
+    mut shot_ball: EventWriter<ShotBall>,
     mut player_q: Query<
-        (&mut Velocity, &mut Player, &Transform),
+        (&mut Velocity, &mut Player, &Transform, &mut Grounded),
         (With<Player>, Without<PlayerCam>),
     >,
     mut camera_q: Query<&mut Transform, With<PlayerCam>>,
@@ -83,7 +92,7 @@ fn control_player(
     mut q_windows: Query<&mut Window, With<PrimaryWindow>>,
 ) {
     let mut camera_transform = camera_q.get_single_mut().unwrap();
-    let (mut player_velocity, mut player_stuff, player_transform) =
+    let (mut player_velocity, mut player_stuff, player_transform, mut is_grounded) =
         player_q.get_single_mut().unwrap();
 
     if keys.just_pressed(KeyCode::Escape) {
@@ -94,7 +103,7 @@ fn control_player(
         .get_single_mut()
         .expect("Could not grab primary window");
 
-    let is_grounded = rapier_context
+    is_grounded.0 = rapier_context
         .cast_ray(
             player_transform.translation,
             -Vec3::Y,
@@ -151,7 +160,7 @@ fn control_player(
     }
 
     // Jump
-    if keys.pressed(KeyCode::Space) && is_grounded {
+    if keys.pressed(KeyCode::Space) && is_grounded.0 {
         player_velocity.linvel.y = 10.0;
     }
 
@@ -161,11 +170,11 @@ fn control_player(
             player_transform.translation
                 + Vec3 {
                     x: 0.0,
-                    y: 0.5,
+                    y: 0.25,
                     z: 0.0,
                 },
             Vec3::from(camera_transform.forward()),
-            10.0,
+            1000.0,
             true,
             QueryFilter::only_fixed(),
         ) {
@@ -173,42 +182,20 @@ fn control_player(
         }
     }
 
-    // if (player_stuff.moving) {
-    //     let poo = movement.normalize_or_zero() * 1000.0 * time.delta_seconds();
-    //     player_velocity.linvel.x = poo.x;
-    //     player_velocity.linvel.z = poo.z;
-    // }
+    // Left Click Shoot Ball
+    if mouse_buttons.pressed(MouseButton::Left) {
+        shot_ball.send(ShotBall(
+            camera_transform.forward(),
+            player_transform.translation + (1.0 * Vec3::from(camera_transform.forward())),
+        ));
+    }
 
-    // let poo = movement.normalize_or_zero() * 1000.0 * time.delta_seconds();
-    // player_velocity.linvel.x += (poo.x);
-    // player_velocity.linvel.z += (poo.z);
-
-    // let poo = movement.normalize_or_zero() * 10.0 * time.delta_seconds();
-    // player_velocity.linvel.x += poo.x;
-    // player_velocity.linvel.z += poo.z;
-
-    let air_resistance = 0.1; // Adjust this value to control the amount of air resistance
-    let max_air_speed = 10.0; // Adjust this value to set the maximum air speed
-    let max_ground_speed = 5.0; // Adjust this value to set the maximum air speed
-
-    if is_grounded {
-        // Player is on the ground
-        let ground_movement = movement.normalize_or_zero() * max_ground_speed;
-        player_velocity.linvel.x = ground_movement.x;
-        player_velocity.linvel.z = ground_movement.z;
+    let normalized_movement = movement.normalize_or_zero() * time.delta_seconds();
+    if is_grounded.0 {
+        player_velocity.linvel.x = normalized_movement.x * 150.0;
+        player_velocity.linvel.z = normalized_movement.z * 150.0;
     } else {
-        // Player is in the air
-        // Apply air resistance
-        let velocity_direction = player_velocity.linvel.normalize_or_zero();
-        let air_resistance_force =
-            -velocity_direction * player_velocity.linvel.length() * air_resistance;
-        player_velocity.linvel += air_resistance_force * time.delta_seconds();
-
-        // Calculate movement velocity based on input
-        let movement_velocity = movement.normalize_or_zero() * max_air_speed;
-
-        // Update player velocity based on input
-        player_velocity.linvel.x += movement_velocity.x * time.delta_seconds();
-        player_velocity.linvel.z += movement_velocity.z * time.delta_seconds();
+        player_velocity.linvel.x += normalized_movement.x * 15.0;
+        player_velocity.linvel.z += normalized_movement.z * 15.0;
     }
 }
