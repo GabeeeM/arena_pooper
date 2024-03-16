@@ -13,7 +13,8 @@ impl Plugin for PlayerPlugin {
         app.add_systems(Startup, spawn_player)
             .add_systems(Update, control_player)
             .add_event::<ShotRocket>()
-            .add_event::<ShotBall>();
+            .add_event::<ShotBall>()
+            .add_event::<DeleteBall>();
     }
 }
 
@@ -33,6 +34,9 @@ pub struct ShotRocket(pub Vec3);
 
 #[derive(Event)]
 pub struct ShotBall(pub Direction3d, pub Vec3);
+
+#[derive(Event)]
+pub struct DeleteBall(pub Entity);
 
 fn spawn_player(
     mut commands: Commands,
@@ -83,6 +87,7 @@ fn control_player(
     time: Res<Time>,
     mut shot_rocket: EventWriter<ShotRocket>,
     mut shot_ball: EventWriter<ShotBall>,
+    mut del_ball: EventWriter<DeleteBall>,
     mut player_q: Query<
         (&mut Velocity, &mut Player, &Transform, &mut Grounded),
         (With<Player>, Without<PlayerCam>),
@@ -188,6 +193,26 @@ fn control_player(
             camera_transform.forward(),
             player_transform.translation + (1.0 * Vec3::from(camera_transform.forward())),
         ));
+    }
+
+    // Delete Ball Ray
+    if keys.pressed(KeyCode::KeyR) {
+        if let Some((entity, _point)) = rapier_context.cast_ray(
+            (player_transform.translation
+                + Vec3 {
+                    x: 0.0,
+                    y: 0.25,
+                    z: 0.0,
+                })
+                + (1.0 * Vec3::from(camera_transform.forward())),
+            Vec3::from(camera_transform.forward()),
+            5000.0,
+            true,
+            QueryFilter::only_dynamic(),
+        ) {
+            del_ball.send(DeleteBall(entity));
+            println!("{:?}", entity);
+        }
     }
 
     let normalized_movement = movement.normalize_or_zero() * time.delta_seconds();
