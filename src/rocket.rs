@@ -2,13 +2,11 @@ use bevy::prelude::*;
 use bevy_rapier3d::{
     dynamics::{RigidBody, Velocity},
     geometry::{Collider, Sensor},
+    pipeline::QueryFilter,
     plugin::RapierContext,
 };
 
-use crate::{
-    ballgun::Prop,
-    player::{Grounded, Player, ShotRocket},
-};
+use crate::{player::ShotRocket, DynamicFart};
 pub struct RocketPlugin;
 
 impl Plugin for RocketPlugin {
@@ -46,14 +44,13 @@ fn do_rocket(
 
 fn handle_rockets(
     mut rockets_q: Query<(&mut BlastDuration, &Transform, Entity), With<BlastDuration>>,
-    mut player_q: Query<(&mut Velocity, &Transform, Entity, &mut Grounded), With<Player>>,
-    mut prop_q: Query<(&mut Velocity, &Transform, Entity), (With<Prop>, Without<Player>)>,
+    mut dyn_q: Query<(&Transform, &mut Velocity), With<DynamicFart>>,
     mut commands: Commands,
     time: Res<Time>,
     rapier_context: Res<RapierContext>,
 ) {
-    let (mut player_velocity, player_transform, player, mut is_grounded) =
-        player_q.get_single_mut().unwrap();
+    // let (mut player_velocity, player_transform, player, mut is_grounded) =
+    //     player_q.get_single_mut().unwrap();
     for (mut timer, blast_transform, blast) in rockets_q.iter_mut() {
         timer.0.tick(time.delta());
 
@@ -61,29 +58,44 @@ fn handle_rockets(
             commands.entity(blast).despawn();
         }
 
-        if rapier_context.intersection_pair(blast, player) == Some(true) {
-            is_grounded.0 = false;
-            let direction = player_transform.translation
-                - (blast_transform.translation
-                    + Vec3 {
-                        x: 0.0,
-                        y: 0.25,
-                        z: 0.0,
-                    });
-            player_velocity.linvel += direction * time.delta_seconds() * 1000.0;
-        }
+        rapier_context.intersections_with_shape(
+            blast_transform.translation,
+            Quat::from_rotation_z(0.0),
+            &Collider::ball(1.0),
+            QueryFilter::only_dynamic(),
+            |entity| {
+                if let Ok((thing_transform, mut thing_velocity)) = dyn_q.get_mut(entity) {
+                    let direction = thing_transform.translation - (blast_transform.translation);
+                    thing_velocity.linvel += direction * time.delta_seconds() * 1000.0;
+                }
 
-        for (mut thing_velocity, thing_transform, thing) in prop_q.iter_mut() {
-            if rapier_context.intersection_pair(blast, thing) == Some(true) {
-                let direction = thing_transform.translation
-                    - (blast_transform.translation
-                        + Vec3 {
-                            x: 0.0,
-                            y: 0.25,
-                            z: 0.0,
-                        });
-                thing_velocity.linvel += direction * time.delta_seconds() * 1000.0;
-            }
-        }
+                false
+            },
+        );
+
+        // if rapier_context.intersection_pair(blast, player) == Some(true) {
+        //     is_grounded.0 = false;
+        //     let direction = player_transform.translation
+        //         - (blast_transform.translation
+        //             + Vec3 {
+        //                 x: 0.0,
+        //                 y: 0.25,
+        //                 z: 0.0,
+        //             });
+        //     player_velocity.linvel += direction * time.delta_seconds() * 1000.0;
+        // }
+
+        // for (mut thing_velocity, thing_transform, thing) in prop_q.iter_mut() {
+        //     if rapier_context.intersection_pair(blast, thing) == Some(true) {
+        // let direction = thing_transform.translation
+        //     - (blast_transform.translation
+        //         + Vec3 {
+        //             x: 0.0,
+        //             y: 0.25,
+        //             z: 0.0,
+        //         });
+        // thing_velocity.linvel += direction * time.delta_seconds() * 1000.0;
+        //     }
+        // }
     }
 }

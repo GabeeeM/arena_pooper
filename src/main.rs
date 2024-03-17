@@ -13,6 +13,8 @@ use player::PlayerPlugin;
 use rocket::RocketPlugin;
 use world::WorldPlugin;
 
+#[derive(Component)]
+pub struct DynamicFart;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)

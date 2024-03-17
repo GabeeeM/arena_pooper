@@ -6,6 +6,8 @@ use bevy::{
 
 use bevy_rapier3d::{dynamics::RigidBody, prelude::*};
 
+use crate::DynamicFart;
+
 pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
@@ -65,6 +67,7 @@ fn spawn_player(
             combine_rule: CoefficientCombineRule::Min,
         },
         Grounded(true),
+        DynamicFart,
     );
 
     let camera = (
@@ -109,14 +112,26 @@ fn control_player(
         .expect("Could not grab primary window");
 
     is_grounded.0 = rapier_context
-        .cast_ray(
+        // .cast_ray(
+        //     player_transform.translation,
+        //     -Vec3::Y,
+        //     0.5,
+        //     true,
+        //     QueryFilter::only_fixed(),
+        // )
+        // .is_some();
+        .cast_shape(
             player_transform.translation,
+            Quat::from_rotation_x(0.0),
             -Vec3::Y,
-            0.5,
+            &Collider::ball(0.5),
+            0.1,
             true,
             QueryFilter::only_fixed(),
         )
         .is_some();
+
+    let mut movement = Vec3::ZERO;
 
     if player_stuff.paused {
         primary_window.cursor.grab_mode = CursorGrabMode::None;
@@ -136,91 +151,155 @@ fn control_player(
             camera_transform.rotation =
                 Quat::from_axis_angle(Vec3::Y, yaw) * Quat::from_axis_angle(Vec3::X, pitch);
         }
-    }
 
-    let mut movement = Vec3::ZERO;
-
-    // Forward
-    if keys.pressed(KeyCode::KeyW) {
-        movement.x += camera_transform.forward().x;
-        movement.z += camera_transform.forward().z;
-    }
-
-    // Backward
-    if keys.pressed(KeyCode::KeyS) {
-        movement.x += camera_transform.back().x;
-        movement.z += camera_transform.back().z;
-    }
-
-    // Left
-    if keys.pressed(KeyCode::KeyA) {
-        movement.x += camera_transform.left().x;
-        movement.z += camera_transform.left().z;
-    }
-
-    // Right
-    if keys.pressed(KeyCode::KeyD) {
-        movement.x += camera_transform.right().x;
-        movement.z += camera_transform.right().z;
-    }
-
-    // Jump
-    if keys.pressed(KeyCode::Space) && is_grounded.0 {
-        player_velocity.linvel.y = 10.0;
-    }
-
-    // Right Click Rocket Mode
-    if mouse_buttons.just_pressed(MouseButton::Right) {
-        if let Some((_entity, point)) = rapier_context.cast_ray_and_get_normal(
-            player_transform.translation
-                + Vec3 {
-                    x: 0.0,
-                    y: 0.25,
-                    z: 0.0,
-                },
-            Vec3::from(camera_transform.forward()),
-            1000.0,
-            true,
-            QueryFilter::only_fixed(),
-        ) {
-            shot_rocket.send(ShotRocket(point.point));
+        // Forward
+        if keys.pressed(KeyCode::KeyW) {
+            movement.x += camera_transform.forward().x;
+            movement.z += camera_transform.forward().z;
         }
-    }
 
-    // Left Click Shoot Ball
-    if mouse_buttons.pressed(MouseButton::Left) {
-        shot_ball.send(ShotBall(
-            camera_transform.forward(),
-            player_transform.translation + (1.0 * Vec3::from(camera_transform.forward())),
-        ));
-    }
-
-    // Delete Ball Ray
-    if keys.pressed(KeyCode::KeyR) {
-        if let Some((entity, _point)) = rapier_context.cast_ray(
-            (player_transform.translation
-                + Vec3 {
-                    x: 0.0,
-                    y: 0.25,
-                    z: 0.0,
-                })
-                + (1.0 * Vec3::from(camera_transform.forward())),
-            Vec3::from(camera_transform.forward()),
-            5000.0,
-            true,
-            QueryFilter::only_dynamic(),
-        ) {
-            del_ball.send(DeleteBall(entity));
-            println!("{:?}", entity);
+        // Backward
+        if keys.pressed(KeyCode::KeyS) {
+            movement.x += camera_transform.back().x;
+            movement.z += camera_transform.back().z;
         }
-    }
+
+        // Left
+        if keys.pressed(KeyCode::KeyA) {
+            movement.x += camera_transform.left().x;
+            movement.z += camera_transform.left().z;
+        }
+
+        // Right
+        if keys.pressed(KeyCode::KeyD) {
+            movement.x += camera_transform.right().x;
+            movement.z += camera_transform.right().z;
+        }
+
+        // Jump
+        if keys.pressed(KeyCode::Space) && is_grounded.0 {
+            player_velocity.linvel.y = 10.0;
+        }
+
+        // Right Click Rocket Mode
+        if mouse_buttons.just_pressed(MouseButton::Right) {
+            if let Some((_entity, point)) = rapier_context.cast_ray_and_get_normal(
+                player_transform.translation
+                    + Vec3 {
+                        x: 0.0,
+                        y: 0.25,
+                        z: 0.0,
+                    },
+                Vec3::from(camera_transform.forward()),
+                1000.0,
+                true,
+                QueryFilter::only_fixed(),
+            ) {
+                shot_rocket.send(ShotRocket(point.point));
+            }
+        }
+
+        // Left Click Shoot Ball
+        if mouse_buttons.pressed(MouseButton::Left) {
+            shot_ball.send(ShotBall(
+                camera_transform.forward(),
+                (player_transform.translation
+                    + Vec3 {
+                        x: 0.0,
+                        y: 0.25,
+                        z: 0.0,
+                    })
+                    + (0.6 * Vec3::from(camera_transform.forward())),
+            ));
+        }
+
+        // Delete Ball Ray
+        if keys.pressed(KeyCode::KeyR) {
+            // if let Some((entity, _point)) = rapier_context.cast_ray(
+            //     (player_transform.translation
+            //         + Vec3 {
+            //             x: 0.0,
+            //             y: 0.25,
+            //             z: 0.0,
+            //         })
+            //         + (0.6 * Vec3::from(camera_transform.forward())),
+            //     Vec3::from(camera_transform.forward()),
+            //     5000.0,
+            //     true,
+            //     QueryFilter::only_dynamic(),
+            // ) {
+            //     del_ball.send(DeleteBall(entity));
+            // }
+
+            if let Some((entity, ..)) = rapier_context.cast_shape(
+                (player_transform.translation
+                    + Vec3 {
+                        x: 0.0,
+                        y: 0.25,
+                        z: 0.0,
+                    })
+                    + (0.8 * Vec3::from(camera_transform.forward())),
+                Quat::from_rotation_z(0.0),
+                Vec3::from(camera_transform.forward()),
+                &Collider::ball(0.3),
+                500.0,
+                true,
+                QueryFilter::only_dynamic(),
+            ) {
+                del_ball.send(DeleteBall(entity));
+            }
+
+            // let shape_pos = player_transform.translation
+            //     + Vec3 {
+            //         x: 0.0,
+            //         y: 0.25,
+            //         z: 0.0,
+            //     }
+            //     + (0.8 * Vec3::from(camera_transform.forward()));
+
+            // let shape_rot = Quat::from_rotation_z(0.0);
+            // let shape = &Collider::ball(0.3);
+            // let filter = QueryFilter::only_dynamic();
+
+            // if let Some((.., intersection)) = rapier_context.cast_shape(
+            //     shape_pos,
+            //     shape_rot,
+            //     Vec3::from(camera_transform.forward()),
+            //     shape,
+            //     1500.0,
+            //     false,
+            //     filter,
+            // ) {
+            //     let mut all_hit_entities = HashSet::new();
+            //     let intersection_point =
+            //         shape_pos + Vec3::from(camera_transform.forward()) * intersection.toi;
+            //     rapier_context.intersections_with_shape(
+            //         intersection_point,
+            //         shape_rot,
+            //         shape,
+            //         filter,
+            //         |entity| {
+            //             all_hit_entities.insert(entity);
+            //             true
+            //         },
+            //     );
+
+            //     for hit_entity in all_hit_entities {
+            //         del_ball.send(DeleteBall(hit_entity));
+            //     }
+            // }
+        }
+    } // end of pause thing put input events above this
 
     let normalized_movement = movement.normalize_or_zero() * time.delta_seconds();
-    if is_grounded.0 {
-        player_velocity.linvel.x = normalized_movement.x * 150.0;
-        player_velocity.linvel.z = normalized_movement.z * 150.0;
-    } else {
-        player_velocity.linvel.x += normalized_movement.x * 15.0;
-        player_velocity.linvel.z += normalized_movement.z * 15.0;
-    }
+    // if is_grounded.0 {
+    //     player_velocity.linvel.x = normalized_movement.x * 500.0;
+    //     player_velocity.linvel.z = normalized_movement.z * 500.0;
+    // } else {
+    //     player_velocity.linvel.x += normalized_movement.x * 15.0;
+    //     player_velocity.linvel.z += normalized_movement.z * 15.0;
+    // }
+
+    player_velocity.linvel.x += normalized_movement.x * 15.0;
+    player_velocity.linvel.z += normalized_movement.z * 15.0;
 }

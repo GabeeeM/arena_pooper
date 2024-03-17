@@ -1,7 +1,10 @@
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 
-use crate::player::{DeleteBall, ShotBall};
+use crate::{
+    player::{DeleteBall, ShotBall},
+    DynamicFart,
+};
 
 pub struct BallGunPlugin;
 
@@ -43,6 +46,7 @@ fn fondle_balls(
                 linear_damping: 1.0,
                 angular_damping: 1.0,
             },
+            DynamicFart,
         );
 
         commands.spawn(ball);
@@ -62,6 +66,7 @@ fn kill_balls(
         if ball_query.get(*entity).is_ok() {
             commands.entity(*entity).despawn();
             ball_count.0 -= 1;
+            println!("{}", ball_count.0);
         }
     }
 }
