@@ -4,7 +4,7 @@ use bevy::{
     window::{CursorGrabMode, PrimaryWindow},
 };
 
-use bevy_rapier3d::{dynamics::RigidBody, prelude::*};
+use bevy_rapier3d::{dynamics::RigidBody, na::ComplexField, prelude::*};
 
 use crate::DynamicFart;
 
@@ -58,10 +58,10 @@ fn spawn_player(
         Velocity::default(),
         LockedAxes::ROTATION_LOCKED,
         Ccd::enabled(),
-        // Damping {
-        //     linear_damping: 5.0,
-        //     angular_damping: 0.0,
-        // },
+        Damping {
+            linear_damping: 5.0,
+            angular_damping: 0.0,
+        },
         Friction {
             coefficient: 0.0,
             combine_rule: CoefficientCombineRule::Min,
@@ -92,15 +92,23 @@ fn control_player(
     mut shot_ball: EventWriter<ShotBall>,
     mut del_ball: EventWriter<DeleteBall>,
     mut player_q: Query<
-        (&mut Velocity, &mut Player, &Transform, &mut Grounded),
+        (
+            &mut Velocity,
+            &mut Player,
+            &Transform,
+            &mut Grounded,
+            &mut Damping,
+        ),
         (With<Player>, Without<PlayerCam>),
     >,
+    mut collider_q: Query<Entity, (With<RigidBody>, With<Player>)>,
     mut camera_q: Query<&mut Transform, With<PlayerCam>>,
     mut mouse_motion: EventReader<MouseMotion>,
     mut q_windows: Query<&mut Window, With<PrimaryWindow>>,
 ) {
     let mut camera_transform = camera_q.get_single_mut().unwrap();
-    let (mut player_velocity, mut player_stuff, player_transform, mut is_grounded) =
+    let player_collider = collider_q.get_single_mut().unwrap();
+    let (mut player_velocity, mut player_stuff, player_transform, mut is_grounded, mut damping) =
         player_q.get_single_mut().unwrap();
 
     if keys.just_pressed(KeyCode::Escape) {
@@ -127,7 +135,7 @@ fn control_player(
             &Collider::ball(0.5),
             0.1,
             true,
-            QueryFilter::only_fixed(),
+            QueryFilter::new().exclude_rigid_body(player_collider),
         )
         .is_some();
 
@@ -291,15 +299,13 @@ fn control_player(
         }
     } // end of pause thing put input events above this
 
-    let normalized_movement = movement.normalize_or_zero() * time.delta_seconds();
-    // if is_grounded.0 {
-    //     player_velocity.linvel.x = normalized_movement.x * 500.0;
-    //     player_velocity.linvel.z = normalized_movement.z * 500.0;
-    // } else {
-    //     player_velocity.linvel.x += normalized_movement.x * 15.0;
-    //     player_velocity.linvel.z += normalized_movement.z * 15.0;
-    // }
+    let normalized_movement = movement.normalize_or_zero();
 
-    player_velocity.linvel.x += normalized_movement.x * 15.0;
-    player_velocity.linvel.z += normalized_movement.z * 15.0;
+    if is_grounded.0 {
+        damping.linear_damping = 5.0;
+    } else {
+        damping.linear_damping = 0.0;
+    }
+    player_velocity.linvel.x += normalized_movement.x * 15.0 * time.delta_seconds();
+    player_velocity.linvel.z += normalized_movement.z * 15.0 * time.delta_seconds();
 }
